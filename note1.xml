@@ -1,0 +1,51 @@
+<?xml version="1.0" ?><!--
+    version.value：当前版本号。应填正整数
+    version.compatible_version：兼容版本号，低于此版本则必须更新。应填整数
+    version.minimum_resource_version：最低资源版本号，低于此版本则必须更新。格式为 %d
+    version.compatible_resource_version: 最低兼容资源版本号，低于此版本则需要强制更新。格式 %d
+    version.evaluation: 是否evaluation
+    version.evaluation_update: 审核版是否更新
+    version.evaluation_version: 审核包的版本号
+    log_level: 0-None, 1-Exception, 2-Error, 3-Warning, 4-Log, 5-All, 默认值为：3
+    ios_official: 是否ios官方版
+--><version value="134" compatible_version="132" minimum_resource_version="1" compatible_resource_version="29537" evaluation="false" evaluation_update="false" evaluation_version="1.0.0" log_level="2" ios_official="false">
+	<!--
+        update(channel).method：更新方式. 可为 install (需参数url和md5), open_url (需参数url), msg (显示一条提示, url填提示文字)
+	channel.channel_id：渠道ID
+        优先选择update的属性，若没有，则选择对应渠道的属性
+    -->
+	<update method="install" url="http://dlied4.myapp.com/myapp/1105218881/mhzxsy/2017_com.tencent.tmgp.mhzxsy_h9322_1.8.2_fac395.apk" md5="48fc9ba9189c4c0e478668f8cf1fdcb6">
+		<!--
+		<channel channel_id="123456" method="install" url="http://10.68.10.10/xom-pc/update/bin/installer-652.exe" md5="2341235adgfg" />
+		<channel channel_id="654321" method="install" url="http://10.68.10.10/xom-pc/update/bin/installer-652.exe" md5="adgafg32154gadf" />
+		<channel channel_id="2010051001" method="msg" url="请到官网下载apk" />
+		-->
+	</update>
+	
+	<!--
+        descrption.name：版本显示名
+        descrption.content：版本内容简述
+    -->
+	<description name="1.8.2" content="　　亲爱的玩家，为了让大家有更好的游戏体验，梦幻诛仙迎来了首次全包更新。点击“[00FF33]立即更新[-]”并使用新客户端登录游戏将获得丰厚奖励：\n　　[FFFF00]符篆石×10[-]、[FFFF00]缤纷甜筒武饰×1[-]和[FFFF00]1000点圣兽积分[-]。"/>
+
+	<!--
+  		maintenance.status：true 表示正在维护中，禁止更新
+  		maintenance.reason：维护信息
+  	-->
+	<maintenance status="false" reason=""/>
+
+	<!--
+		resource_update.project: 项目代号
+  		resource_update.packext: 补丁包后缀
+  		resource_update.address: 更新主站地址
+		resource_update.backup_address: 更新备用站地址
+		resource_update.backup_ip: 更新IP站地址
+		resource_update.announcement_address: 公告地址
+  	-->
+	<resource_update project="mhzx" packext=".mzp" address="http://dlied5.qq.com/mhzx/formal_android" backup_address="http://dlied5.qq.com/mhzx/formal_android" backup_ip="http://dlied5.qq.com/mhzx/formal_android" announcement_address="http://dlied5.qq.com/mhzx/formal_android/announcements"/>
+	
+	<services get_role_list="http://common.mhzx.qq.com:28000/grc/get_role_list" check_invite_code="http://common.mhzx.qq.com:28000/grc/check_invite_code" can_use_invite_code="http://common.mhzx.qq.com:28000/grc/can_use_invite_code" get_free_flow_info="http://common.mhzx.qq.com:28000/grc/get_free_flow_info" https_get_first_reg="https://grc.mhzx.qq.com:28000/grc/get_first_reg" get_first_reg="http://common.mhzx.qq.com:28000/grc/get_first_reg" https_get_xinyue_super="https://grc.mhzx.qq.com:28000/grc/get_xinyue_super" get_xinyue_super="http://common.mhzx.qq.com:28000/grc/get_xinyue_super"/>
+
+	<social_space gameid="205" address="http://common.mhzx.qq.com:28001"/>
+<freeflow china_mobile="183.194.236.237" china_unicom="112.64.236.11" china_telecom="101.89.40.59"/>
+</version>
