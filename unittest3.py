@@ -12,7 +12,7 @@ def getDword(data, offset):
 def getBody(data, offset, msgBodyLength):
     msgBody = bytes('', 'utf-8')
     for i in range(msgBodyLength):
-        msgBody += data[offset + i].to_bytes(1, byteorder='little', signed=False)
+        msgBody += data[offset + i].to_bytes(1, 'big')
     return msgBody
     
 def parseMsgBody7101(data):

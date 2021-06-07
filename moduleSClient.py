@@ -1,158 +1,185 @@
 from PyQt5.QtCore import QThread, pyqtSignal
-import socket, time, threading, zlib
-from xml.dom.minidom import parseString
+import socket, time, json
 
 class SClient(QThread):
-    notifyOut = pyqtSignal(int)
+    notifyOutLog = pyqtSignal(str)
 
-    def __init__(self, serverName, serverPort):
+    def __init__(self, authInfo):
         super(SClient, self).__init__()
 
-        self._serverName = serverName
-        self._serverPort = serverPort
+        self._authInfo = authInfo
         self._socketObj = socket.socket(socket.AF_INET, socket.SOCK_STREAM, socket.SOL_TCP)
         self._serverMap = {}
         self._running = True
         self._RECV_CATCH_SIZE = 65535
 
-    def sendData(self):
-        pass
-        # s.send(b'*3\r\n$3\r\nSET\r\n$10\r\nprobeRedis\r\n$10\r\nhelloRedis\r\n')
+    def sendData(self, data):
+        return self._socketObj.send(data)
     
+    def getByte(self, data, offset):
+        return data[offset]
+
     def getWord(self, data, offset):
-        return (((data[offset] & 255) << 8) | (data[offset + 1] & 255)) & 4294934527 # 这里为什么是4294934527, 还没搞清楚
+        return (((data[offset] & 255) << 8) |
+                (data[offset + 1] & 255)) & 4294934527 # 这里为什么是4294934527, 还没搞清楚
 
     def getDword(self, data, offset):
-        return (((data[offset] & 255) << 24) | ((data[offset + 1] & 255) << 16) | ((data[offset + 2] & 255) << 8) | (data[offset + 3] & 255)) & 1073741823 # 这里又为什么是1073741823
+        return (((data[offset] & 255) << 24) |
+                ((data[offset + 1] & 255) << 16) |
+                ((data[offset + 2] & 255) << 8) |
+                (data[offset + 3] & 255))
+
+    def getDDword(self, data, offset):
+        return (((data[offset] & 255) << 56) |
+                ((data[offset + 1] & 255) << 48) |
+                ((data[offset + 2] & 255) << 40) |
+                ((data[offset + 3] & 255) << 32) |
+                ((data[offset + 4] & 255) << 24) |
+                ((data[offset + 5] & 255) << 16) |
+                ((data[offset + 6] & 255) << 8) |
+                (data[offset + 7] & 255))
 
     def getBody(self, data, offset, msgBodyLength):
         msgBody = bytes('', 'utf-8')
         for i in range(msgBodyLength):
-            msgBody += data[offset + i].to_bytes(1, byteorder='little', signed=False)
+            msgBody += data[offset + i].to_bytes(1, 'big')
         return msgBody
         
-    def parseMsgBody7101(self, data):
-        def parseField1(field):
-            fieldUnziped = zlib.decompress(field)
-            fieldXmlDomTree = parseString(fieldUnziped)
-            serverGroupList = fieldXmlDomTree.firstChild
-            serverGroupList = serverGroupList.getElementsByTagName('servergroup')
-            serverMap = {}
-            for serverGroup in serverGroupList:
-                channel = serverGroup.getAttribute('auth')
-                platformList = serverGroup.getAttribute('os').split(',')
-                serverList = serverGroup.getElementsByTagName('server')
-                for server in serverList:
-                    hidden = server.getAttribute('hidden')
-                    if hidden == 'true':
-                        continue
-                    name = server.getAttribute('name')
-                    address = server.getAttribute('address')
-                    portList = server.getAttribute('port').split(',')
-                    support_multi_system_plats = server.getAttribute('support_multi_system_plats')
-                    zoneid = server.getAttribute('zoneid')
-                    for platform in platformList:
-                        serverKey = channel + '@|||@' + platform + '@|||@' + name
-                        serverMap[serverKey] = {
-                            'channel': channel,
-                            'platformList': platformList,
-                            'name': name,
-                            'address': address,
-                            'portList': portList,
-                            'support_multi_system_plats': support_multi_system_plats,
-                            'zoneid': zoneid
-                        }
-            return serverMap
-        def parseField2(field):
-            fieldUnziped = zlib.decompress(feild)
-            fieldXmlDomTree = parseString(fieldUnziped)
-            updateInfo = fieldXmlDomTree.toxml()
-            # 没大用就不继续解析了
-            return updateInfo
-        def parseField3(field):
-            fieldUnziped = zlib.decompress(field)
-            versionList = fieldUnziped.decode()
-            # 没大用就不继续解析了
-            return versionList
-        
+    def unpackMsgBody101(self, data):
         offset = 0
+
+        nonceLength = self.getByte(data, offset)
+        offset += 1
+        nonce = self.getBody(data, offset, nonceLength)
+        nonce = ''.join([hex(v) for v in nonce])
+        offset += nonceLength
+
+        version = self.getDword(data, offset)
+        offset += 4
+
+        flags = self.getDword(data, offset)
+        offset += 4
+
+        load = self.getByte(data, offset)
+        offset += 1
+
+        extraLength = self.getByte(data, offset)
+        offset += 1
+        extra = {}
+        for i in range(extraLength):
+            key = self.getDword(data, offset)
+            offset += 4
+            val = self.getDword(data, offset)
+            offset += 4
+            extra[str(key)] = val
+
+        extra2Length = self.getByte(data, offset)
+        offset += 1
+        extra2 = {}
+        for i in range(extra2Length):
+            key = self.getDword(data, offset)
+            offset += 4
+            val = self.getDword(data, offset)
+            offset += 4
+            extra2[str(key)] = val
+
+        return {
+            'nonce': nonce,
+            'version': version,
+            'flags:': flags,
+            'load': load,
+            'extra': extra,
+            'extra2': extra2
+        }
+    
+    def numberToUByteBytes(self, number):
+        return number.to_bytes(1, 'big')
+
+    def numberToShortBytes(self, number):
+        byte1 = (number | 32768) >> 8 #这里32768是一个符号位，说明是有符号的
+        byte2 = number & 255
+        byte1 = byte1.to_bytes(1, 'big')
+        byte2 = byte2.to_bytes(1, 'big')
+        return byte1 + byte2
+
+    def numberToUIntBytes(self, number):
+        byte1 = (number >> 24) & 255
+        byte2 = (number >> 16) & 255
+        byte3 = (number >> 8) & 255
+        byte4 = number & 255
+        byte1 = byte1.to_bytes(1, 'big')
+        byte2 = byte2.to_bytes(1, 'big')
+        byte3 = byte3.to_bytes(1, 'big')
+        byte4 = byte4.to_bytes(1, 'big')
+        return byte1 + byte2 + byte3 + byte4
+
+    def packMsgBody103(self):
+        protoId = 103
+
+        data = bytes('', 'utf-8')
+
+        mAccount = self._authInfo['mAccount']
+        data += self.numberToUByteBytes(len(mAccount))
+        data += bytes(mAccount, 'utf-8')
+
+        mToken = self._authInfo['mToken']
+        data += self.numberToShortBytes(len(mToken))
+        data += bytes(mToken, 'utf-8')
         
-        fieldBodyLength = self.getWord(data, offset)
-        offset += 2
-        print('字段一长度:', fieldBodyLength)
-        field1Body = self.getBody(data, offset, fieldBodyLength)
-        offset += fieldBodyLength
+        loginType = self._authInfo['loginType']
+        data += self.numberToUIntBytes(loginType)
 
-        fieldBodyLength = self.getWord(data, offset)
-        offset += 2
-        print('字段二长度:', fieldBodyLength)
-        field2Body = self.getBody(data, offset, fieldBodyLength)
-        offset += fieldBodyLength
+        data += self.numberToUByteBytes(0)
 
-        fieldBodyLength = self.getWord(data, offset)
-        offset += 2
-        print('字段三长度:', fieldBodyLength)
-        field3Body = self.getBody(data, offset, fieldBodyLength)
-        offset += fieldBodyLength
+        deviceInfo = self._authInfo['deviceInfo']
+        data += self.numberToShortBytes(len(deviceInfo))
+        data += bytes(deviceInfo, 'utf-8')
 
-        # 数据含义暂不确定
-        serverListLength = self.getDword(data, offset)
-        offset += 4
-        print('字段四:', serverListLength)
+        data += self.numberToUByteBytes(0)
+        data += self.numberToUByteBytes(0)
+        data += self.numberToUByteBytes(0)
+        data += self.numberToUByteBytes(0)
 
-        # 数据含义暂不确定
-        versionLength = self.getDword(data, offset)
-        offset += 4
-        print('字段五:', versionLength)
+        return data
 
-        # 数据含义暂不确定
-        versionListLength = self.getDword(data, offset)
-        offset += 4
-        print('字段六:', versionListLength)
 
-        serverMap = parseField1(field1Body)
-        return serverMap
-
-    def parseData(self, data):
+    def processData(self, data):
         totalLength = len(data)
-        print("总长度:", totalLength)
+        self.notifyOutLog.emit('接收到 数据大小:' + str(totalLength))
         offset = 0
-        protoId = self.getWord(data, offset)
+        protoId = self.getByte(data, offset)
+        offset += 1
+        self.notifyOutLog.emit('接收到 协议ID:' + str(protoId))
+        msgBodyLength = self.getWord(data, offset)
         offset += 2
-        print('协议ID:', protoId)
-        msgBodyLength = self.getDword(data, offset)
-        offset += 4
-        print('消息体长度:', msgBodyLength)
-        if protoId == 7101:
+        self.notifyOutLog.emit('接收到 消息体长度:' + str(msgBodyLength))
+        if protoId == 101:
+            self.notifyOutLog.emit('解析并处理协议:' + str(protoId))
             msgBody = self.getBody(data, offset, msgBodyLength)
-            serverMap = self.parseMsgBody7101(msgBody)
-            return {
-                'protoId': protoId,
-                'serverMap': serverMap
-            }
-
-    def processMsg(self, msg):
-        protoId = msg['protoId']
-        if protoId == 7101:
-            self._serverMap = msg['serverMap']
-            self._running = False
+            msgData = self.unpackMsgBody101(msgBody)
+            
+            protoId = 103
+            msgBody = self.packMsgBody103()
+            data = bytes('', 'utf-8')
+            data += self.numberToShortBytes(protoId)
+            data += self.numberToShortBytes(len(msgBody))
+            data += msgBody
+            sendDataRet = self.sendData(data)
+            self.notifyOutLog.emit('sendDataRet:' + str(sendDataRet))
+        if protoId == 106:
+            self.notifyOutLog.emit('解析并处理协议:' + str(protoId))
 
     def run(self):
         while self._running:
+            self.notifyOutLog.emit('####一秒有后接收数据####')
             time.sleep(1)
             data = self._socketObj.recv(self._RECV_CATCH_SIZE)
             if len(data) == 0:
                 continue
-            msg = self.parseData(data)
-            self.processMsg(msg)
+            self.processData(data)
         self._socketObj.close()
 
-    def getServerMap(self):
-        self._socketObj.connect((self._serverName, self._serverPort))
-        self.start()
-        self.wait()
-        return self._serverMap
-
-    def connectToGameServer(self):
-        self._socketObj.connect((self._serverName, self._serverPort))
+    def connectToGameServer(self, serverName, serverPort):
+        self.notifyOutLog.emit('连接到游戏服:' + serverName + ':' + str(serverPort))
+        self._socketObj.connect((serverName, serverPort))
         self.start()

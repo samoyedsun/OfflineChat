@@ -4,8 +4,12 @@ GAME_LIST = [
     '梦幻诛仙'
 ]
 PLATFORM_LIST = [
-    '微信',
+    '微信-安卓'
 ]
+
+PALTFORM_MAP = {
+    '微信-安卓': 'wechat@|||@android'
+}
 
 MHZX_MSDK_KEY = 'e6276d4602a195fccde20c0ee62c9a53'
 MHZX_APPID = 'wx5450e72520b1f41e'

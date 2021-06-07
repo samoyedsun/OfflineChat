@@ -46,7 +46,6 @@ class Wechat(QThread):
     def getQrcodeInfo(self):
         resInfo = self.reqWxscanLogin()
         if resInfo['ret'] != 0:
-            print('reqWxscanLogin接口出错, ret:', resInfo['ret'], ', msg:', resInfo['msg'])
             return False
         url = 'https://open.weixin.qq.com/connect/sdk/qrconnect'
         url = url + '?appid=' + self._appid
@@ -61,7 +60,6 @@ class Wechat(QThread):
         errcode = dictData['errcode']
         errmsg = dictData['errcode']
         if errcode != 0:
-            print('getQrcodeInfo接口出错, errcode:', errcode, ', errmsg:', errmsg)
             return False
         self._uuid = dictData['uuid']
         appname = dictData['appname']
@@ -78,22 +76,22 @@ class Wechat(QThread):
         origin_url = 'https://long.open.weixin.qq.com/connect/l/qrconnect?f=json' + '&uuid=' + self._uuid
         url = origin_url
         while self._checkRuning:
-            print("send:", url)
             resp = request.urlopen(url)
             dataText = resp.read()
             dictData = json.loads(dataText)
             wxErrcode = dictData['wx_errcode']
             wxCode = dictData['wx_code']
-            print("recv:", dataText)
-            if wxErrcode == 408:
+            if wxErrcode == 408 and self._checkRuning:
                 self.notifyOut.emit(1)
-            if wxErrcode == 404:
+            if wxErrcode == 404 and self._checkRuning:
                 self.notifyOut.emit(2)
             if wxErrcode == 402:
                 self.notifyOut.emit(11)
+                break
             if wxErrcode == 405:
                 self._loginInfo = self.wxFirstLogin(wxCode)
-                self.notifyOut.emit(11)
+                self.notifyOut.emit(12)
+                break
             url = origin_url + '&last=' + str(wxErrcode)
 
     def startCheckingQrcodeStatus(self):
