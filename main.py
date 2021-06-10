@@ -185,25 +185,25 @@ class Window(QMainWindow):
         deviceInfo = {
             'gameAppid': ModuleConfig.MHZX_APPID,
             'platid': 1,
-            'registerChannelid': 2002,
+            'registerChannelid': 10040714,
             'paramMap': {
-                '0': 15962,
-                '1': 'Android OS 7.1.1 \/ API-25 (NMF26X\/3)',
-                '2': 'OnePlus ONEPLUS A5000',
+                '0': 29537,
+                '1': 'Android OS 6.0.1 \/ API-23 (V417IR\/eng.duanlusheng.20210513.115441)',
+                '2': 'Netease MuMu',
                 '3': 'MOBILE',
-                '4': 1920,
-                '5': 1080,
-                '6': 420,
-                '7': 'processorCount=8,processorType=ARMv7 VFPv3 NEON',
-                '8': 7723,
-                '9': 'Adreno (TM) 540',
-                '10': 'OpenGL ES 3.2 V@207.0 (GIT@8209866, I528a81912f) (Date:04\/01\/17)',
-                '11': 'ba846b6b862a16bd052b3f03e14f9558',
+                '4': 1440,
+                '5': 810,
+                '6': 320,
+                '7': 'processorCount=2,processorType=Intel x86 SSE3',
+                '8': 3953,
+                '9': 'MuMu GL (Intel Inc. Intel(R) Iris(TM) Plus Graphics OpenGL Engine OpenGL 4.1 core)',
+                '10': 'OpenGL ES 2.0 (MuMu GL, Powered by ANGLE 2.1.0.23333333)',
+                '11': 'c74ea5ac9b46cfb9cb063c136bac8ed2',
                 '12': 0
             },
-            'telecomOper': 2,
+            'telecomOper': 0,
             'fakePlatform': 0,
-            'channelid': '2002'
+            'channelid': '10040714'
         }
         return {
             'mAccount': mAccount,
