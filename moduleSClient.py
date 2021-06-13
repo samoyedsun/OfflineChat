@@ -1,5 +1,5 @@
 from PyQt5.QtCore import QThread, pyqtSignal
-import socket, time
+import socket, time, json
 
 import moduleSecurity as ModuleSecurity
 
@@ -18,8 +18,16 @@ class SClient(QThread):
 
     def sendData(self, protoId, msgBody):
         data = bytes('', 'utf-8')
-        data += self.numberToUByteBytes(protoId)
-        data += self.numberToShortBytes(len(msgBody))
+        if protoId <= 128:
+            data += self.numberToUByteBytes(protoId)
+        else:
+            realProtoId = protoId | 3221225472
+            data += self.numberToUIntBytes(realProtoId)
+        msgBodyLength = len(msgBody)
+        if msgBodyLength <= 128:
+            data += self.numberToUByteBytes(msgBodyLength)
+        else:
+            data += self.numberToShortBytes(msgBodyLength)
         data += msgBody
         if self._mhzxSecurityObj:
             data = self._mhzxSecurityObj.encryption(data)
@@ -32,7 +40,7 @@ class SClient(QThread):
 
     def getWord(self, offset, data):
         return offset + 2, (((data[offset] & 255) << 8) |
-                (data[offset + 1] & 255)) & 4294934527 # 这里为什么是4294934527, 还没搞清楚
+                (data[offset + 1] & 255))
 
     def getDword(self, offset, data):
         return offset + 4, (((data[offset] & 255) << 24) |
@@ -54,9 +62,21 @@ class SClient(QThread):
         header = data[offset] & 128
         if header == 128: # 说明是符号位
             offset, length = self.getWord(offset, data)
+            length &= 4294934527 # 这里为什么是4294934527, 还没搞清楚
         if header == 0:
             offset, length = self.getByte(offset, data)
         return offset, length
+
+    def getProtoId(self, offset, data):
+        if data[offset] & 192 == 192: # 说明是符号位
+            offset, protoId = self.getDword(offset, data)
+            protoId &= 1073741823 # 这里为什么是1073741823, 还没搞清楚
+        elif data[offset] & 128 == 128:
+            offset, protoId = self.getWord(offset, data)
+            protoId &= 4294934527 # 这里为什么是4294934527, 还没搞清楚
+        else:
+            offset, protoId = self.getByte(offset, data)
+        return offset, protoId
 
     def getBody(self, offset, data, bodyLength):
         msgBody = bytes('', 'utf-8')
@@ -105,6 +125,27 @@ class SClient(QThread):
             'serverKey': serverKey,
             'keyType': keyType
         }
+
+    def unpackMsgBody110(self, data):
+        offset = 0
+        offset, bodyLength = self.getBodyLength(offset, data)
+        offset, userId = self.getBody(offset, data, bodyLength)
+        offset, localSid = self.getDword(offset, data)
+        offset, remainTime = self.getDword(offset, data)
+        offset, zoneid = self.getDword(offset, data)
+        offset, aid = self.getDword(offset, data)
+        offset, algorithm = self.getDword(offset, data)
+        offset, bodyLength = self.getBodyLength(offset, data)
+        #offset, reconnectToken = self.getBody(offset, data, bodyLength)
+        body110 = {
+            'userId': userId,
+            'localSid': localSid,
+            'remainTime': remainTime,
+            'zoneid': zoneid,
+            'aid': aid,
+            'algorithm': algorithm
+        }
+        return body110
     
     def numberToUByteBytes(self, number):
         return number.to_bytes(1, 'big')
@@ -166,31 +207,36 @@ class SClient(QThread):
 
         return data
 
+    def packMsgBody12590082(self):
+        data = bytes('', 'utf-8')
+        data += self.numberToUIntBytes(0)
+        data += self.numberToUIntBytes(0)
+        return data
+
     def processData(self, data):
+        self.notifyOutLog.emit('接收到 解密前数据大小:' + str(len(data)))
         if self._mhzxSecurityObj:
             data = self._mhzxSecurityObj.decryption(data)
         totalLength = len(data)
-        self.notifyOutLog.emit('接收到 数据大小:' + str(totalLength))
+        self.notifyOutLog.emit('接收到 解密后数据大小:' + str(totalLength))
+        if totalLength == 0:
+            return
         offset = 0
-        offset, protoId = self.getByte(offset, data)
+        offset, protoId = self.getProtoId(offset, data)
         self.notifyOutLog.emit('接收到 协议ID:' + str(protoId))
         offset, bodyLength = self.getBodyLength(offset, data)
         self.notifyOutLog.emit('接收到 消息体长度:' + str(bodyLength))
         if protoId == 101:
-            self.notifyOutLog.emit('解析并处理协议:' + str(protoId))
             offset, msgBody = self.getBody(offset, data, bodyLength)
             msgData = self.unpackMsgBody101(msgBody)
-            self.notifyOutLog.emit('解析后:' + str(msgData))
             
             protoId = 103
             msgBody = self.packMsgBody103()
             self.sendData(protoId, msgBody)
 
         if protoId == 106:
-            self.notifyOutLog.emit('解析并处理协议:' + str(protoId))
             offset, msgBody = self.getBody(offset, data, bodyLength)
             msgData = self.unpackMsgBody106(msgBody)
-            self.notifyOutLog.emit('解析后:' + str(msgData))
 
             serverKey = msgData['serverKey']
             mAccount = self._authInfo['mAccount']
@@ -200,9 +246,18 @@ class SClient(QThread):
             protoId = 106
             msgBody = self.packMsgBody106()
             self.sendData(protoId, msgBody)
-            
+
         if protoId == 110:
-            self.dumpBytesData(data)
+            offset, msgBody = self.getBody(offset, data, bodyLength)
+            msgData = self.unpackMsgBody110(msgBody)
+
+            protoId = 12590082
+            msgBody = self.packMsgBody12590082()
+            self.sendData(protoId, msgBody)
+
+        if protoId == 12590042:
+            offset, msgBody = self.getBody(offset, data, bodyLength)
+            #msgData = self.unpackMsgBody110(msgBody)
 
     def run(self):
         while self._running:
